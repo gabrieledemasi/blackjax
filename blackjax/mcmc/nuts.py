@@ -78,8 +78,7 @@ def build_kernel(
     bounds, 
     boundary_conditions, 
     integrator: Callable = integrators.velocity_verlet,
-    divergence_threshold: int = 1000,
-
+    divergence_threshold: int = 100,
 ):
     """Build an iterative NUTS kernel.
 
@@ -115,15 +114,16 @@ def build_kernel(
 
     def kernel(
         rng_key: PRNGKey,
-        state: hmc.HMCState,
+        state: hmc.HMCState, 
         logdensity_fn: Callable,
         step_size: float,
-        inverse_mass_matrix: metrics.MetricTypes,
-        max_num_doublings: int = 10,
+        metric : None, 
+        max_num_doublings: int = 7,
     ) -> tuple[hmc.HMCState, NUTSInfo]:
         """Generate a new sample with the NUTS kernel."""
 
-        metric = metrics.default_metric(inverse_mass_matrix)
+        
+        metric = metrics.default_metric(metric)
         symplectic_integrator = integrator(logdensity_fn, metric.kinetic_energy, bounds, boundary_conditions)
         proposal_generator = iterative_nuts_proposal(
             symplectic_integrator,
@@ -135,16 +135,24 @@ def build_kernel(
 
         key_momentum, key_integrator = jax.random.split(rng_key, 2)
 
-        position, logdensity, logdensity_grad = state
+        position, logdensity, logdensity_grad, _= state
         momentum = metric.sample_momentum(key_momentum, position)
 
         integrator_state = integrators.IntegratorState(
             position, momentum, logdensity, logdensity_grad
         )
+
+
         proposal, info = proposal_generator(key_integrator, integrator_state, step_size)
+
+        
+
+
         proposal = hmc.HMCState(
-            proposal.position, proposal.logdensity, proposal.logdensity_grad
+            proposal.position, proposal.logdensity, proposal.logdensity_grad, step_size
         )
+ 
+
         return proposal, info
 
     return kernel
