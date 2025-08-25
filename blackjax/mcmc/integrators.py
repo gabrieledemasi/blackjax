@@ -59,6 +59,8 @@ def generalized_two_stage_integrator(
     operator1: Callable,
     operator2: Callable,
     coefficients: list[float],
+    bounds, 
+    boundary_conditions,
     format_output_fn: Callable = lambda x: x,
 ):
     """Generalized numerical integrator for solving ODEs.
@@ -97,12 +99,12 @@ def generalized_two_stage_integrator(
         Integrator function.
     """
 
-    def one_step(state: IntegratorState, step_size: float):
-        position, momentum, _, logdensity_grad = state
+    def one_step(state: IntegratorState, step_size: float, ):
         # auxiliary infomation generated during integration for diagnostics. It is
         # updated by the operator1 and operator2 at each call.
         momentum_update_info = None
         position_update_info = None
+        lower_bounds, upper_bounds = bounds.T
         for i, coef in enumerate(coefficients[:-1]):
             if i % 2 == 0:
                 momentum, kinetic_grad, momentum_update_info = operator1(
@@ -125,7 +127,22 @@ def generalized_two_stage_integrator(
                     step_size,
                     coef,
                     position_update_info,
-                )
+                )  
+                # jax.debug.print("position = {y}", y=position)
+                q = position
+                over_upper  = q > upper_bounds
+                under_lower = q < lower_bounds
+                # jax.deb
+                reflect_factor = jnp.where(over_upper | under_lower, -1.0, 1.0)
+
+                # # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
+                q  = jnp.where(boundary_conditions == 0, jnp.where(q < lower_bounds, 2*lower_bounds-q, q), jnp.where(q < lower_bounds, q -lower_bounds + upper_bounds, q))
+
+                # # whether to apply reflective or circular boundary condition, position upper bound case
+                q = jnp.where(boundary_conditions == 0, jnp.where(q > upper_bounds, 2*upper_bounds-q, q) ,  jnp.where(q > upper_bounds, q-upper_bounds+lower_bounds, q))
+                position = q
+
+
         # Separate the last steps to short circuit the computation of the kinetic_grad.
         momentum, kinetic_grad, momentum_update_info = operator1(
             momentum,
@@ -134,6 +151,7 @@ def generalized_two_stage_integrator(
             coefficients[-1],
             momentum_update_info,
             is_last_call=True,
+            reflect_factor=reflect_factor,
         )
         return format_output_fn(
             position,
@@ -221,7 +239,7 @@ def generate_euclidean_integrator(coefficients):
     """
 
     def euclidean_integrator(
-        logdensity_fn: Callable, kinetic_energy_fn: KineticEnergy
+        logdensity_fn: Callable, kinetic_energy_fn: KineticEnergy, bounds, boundary_conditions
     ) -> Integrator:
         position_update_fn = euclidean_position_update_fn(logdensity_fn)
         momentum_update_fn = euclidean_momentum_update_fn(kinetic_energy_fn)
@@ -229,6 +247,8 @@ def generate_euclidean_integrator(coefficients):
             momentum_update_fn,
             position_update_fn,
             coefficients,
+            bounds,
+            boundary_conditions,
             format_output_fn=format_euclidean_state_output,
         )
         return one_step
@@ -255,7 +275,7 @@ of the kinetic energy. We are trading accuracy in exchange, and it is not
 clear whether this is the right tradeoff.
 """
 velocity_verlet_coefficients = [0.5, 1.0, 0.5]
-velocity_verlet = generate_euclidean_integrator(velocity_verlet_coefficients)
+velocity_verlet = generate_euclidean_integrator(velocity_verlet_coefficients,)
 
 """
 Two-stage palindromic symplectic integrator derived in :cite:p:`blanes2014numerical`.

@@ -75,8 +75,11 @@ class NUTSInfo(NamedTuple):
 
 
 def build_kernel(
+    bounds, 
+    boundary_conditions, 
     integrator: Callable = integrators.velocity_verlet,
     divergence_threshold: int = 1000,
+
 ):
     """Build an iterative NUTS kernel.
 
@@ -121,7 +124,7 @@ def build_kernel(
         """Generate a new sample with the NUTS kernel."""
 
         metric = metrics.default_metric(inverse_mass_matrix)
-        symplectic_integrator = integrator(logdensity_fn, metric.kinetic_energy)
+        symplectic_integrator = integrator(logdensity_fn, metric.kinetic_energy, bounds, boundary_conditions)
         proposal_generator = iterative_nuts_proposal(
             symplectic_integrator,
             metric.kinetic_energy,
