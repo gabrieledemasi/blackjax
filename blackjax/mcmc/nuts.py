@@ -135,7 +135,7 @@ def build_kernel(
 
         key_momentum, key_integrator = jax.random.split(rng_key, 2)
 
-        position, logdensity, logdensity_grad, _= state
+        position, logdensity, logdensity_grad, = state
         momentum = metric.sample_momentum(key_momentum, position)
 
         integrator_state = integrators.IntegratorState(
@@ -149,7 +149,7 @@ def build_kernel(
 
 
         proposal = hmc.HMCState(
-            proposal.position, proposal.logdensity, proposal.logdensity_grad, step_size
+            proposal.position, proposal.logdensity, proposal.logdensity_grad, 
         )
  
 

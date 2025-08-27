@@ -100,11 +100,14 @@ def generalized_two_stage_integrator(
     """
 
     def one_step(state: IntegratorState, step_size: float, ):
+        position, momentum, _, logdensity_grad = state
         # auxiliary infomation generated during integration for diagnostics. It is
         # updated by the operator1 and operator2 at each call.
         momentum_update_info = None
         position_update_info = None
+
         lower_bounds, upper_bounds = bounds.T
+
         for i, coef in enumerate(coefficients[:-1]):
             if i % 2 == 0:
                 momentum, kinetic_grad, momentum_update_info = operator1(
@@ -140,6 +143,7 @@ def generalized_two_stage_integrator(
 
                 # # whether to apply reflective or circular boundary condition, position upper bound case
                 q = jnp.where(boundary_conditions == 0, jnp.where(q > upper_bounds, 2*upper_bounds-q, q) ,  jnp.where(q > upper_bounds, q-upper_bounds+lower_bounds, q))
+
                 position = q
 
 
@@ -151,7 +155,7 @@ def generalized_two_stage_integrator(
             coefficients[-1],
             momentum_update_info,
             is_last_call=True,
-            reflect_factor=reflect_factor,
+            # reflect_factor=reflect_factor,
         )
         return format_output_fn(
             position,
