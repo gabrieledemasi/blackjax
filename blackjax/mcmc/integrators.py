@@ -138,7 +138,7 @@ def generalized_two_stage_integrator(
                 # jax.deb
                 reflect_factor = jnp.where(over_upper | under_lower, -1.0, 1.0)
 
-                # # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
+                # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
                 q  = jnp.where(boundary_conditions == 0, jnp.where(q < lower_bounds, 2*lower_bounds-q, q), jnp.where(q < lower_bounds, q -lower_bounds + upper_bounds, q))
 
                 # # whether to apply reflective or circular boundary condition, position upper bound case
@@ -155,7 +155,8 @@ def generalized_two_stage_integrator(
             coefficients[-1],
             momentum_update_info,
             is_last_call=True,
-            # reflect_factor=reflect_factor,
+            reflect_factor=reflect_factor,
+            boundary_conditions = boundary_conditions, 
         )
         return format_output_fn(
             position,
@@ -207,8 +208,12 @@ def euclidean_momentum_update_fn(kinetic_energy_fn: KineticEnergy):
         coef: float,
         auxiliary_info=None,
         is_last_call=False,
+        reflect_factor = None, 
+        boundary_conditions = None, 
     ):
         del auxiliary_info
+        if is_last_call:
+            momentum = jnp.where(boundary_conditions == 0, momentum*reflect_factor, momentum)
         new_momentum = jax.tree_util.tree_map(
             lambda x, grad: x + step_size * coef * grad,
             momentum,
