@@ -124,27 +124,31 @@ def generalized_two_stage_integrator(
                     logdensity,
                     logdensity_grad,
                     position_update_info,
+                    reflect_factor
+                
                 ) = operator2(
                     position,
                     kinetic_grad,
                     step_size,
                     coef,
                     position_update_info,
+                    bounds, 
+                    boundary_conditions, 
                 )  
                 # jax.debug.print("position = {y}", y=position)
-                q = position
-                over_upper  = q > upper_bounds
-                under_lower = q < lower_bounds
-                # jax.deb
-                reflect_factor = jnp.where(over_upper | under_lower, -1.0, 1.0)
+                # q = position
+                # over_upper  = q > upper_bounds
+                # under_lower = q < lower_bounds
+                # # jax.deb
+                # reflect_factor = jnp.where(over_upper | under_lower, -1.0, 1.0)
 
-                # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
-                q  = jnp.where(boundary_conditions == 0, jnp.where(q < lower_bounds, 2*lower_bounds-q, q), jnp.where(q < lower_bounds, q -lower_bounds + upper_bounds, q))
+                # # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
+                # q  = jnp.where(boundary_conditions == 0, jnp.where(q < lower_bounds, 2*lower_bounds-q, q), jnp.where(q < lower_bounds, q -lower_bounds + upper_bounds, q))
 
-                # # whether to apply reflective or circular boundary condition, position upper bound case
-                q = jnp.where(boundary_conditions == 0, jnp.where(q > upper_bounds, 2*upper_bounds-q, q) ,  jnp.where(q > upper_bounds, q-upper_bounds+lower_bounds, q))
+                # # # whether to apply reflective or circular boundary condition, position upper bound case
+                # q = jnp.where(boundary_conditions == 0, jnp.where(q > upper_bounds, 2*upper_bounds-q, q) ,  jnp.where(q > upper_bounds, q-upper_bounds+lower_bounds, q))
 
-                position = q
+                # position = q
 
 
         # Separate the last steps to short circuit the computation of the kinetic_grad.
@@ -185,6 +189,8 @@ def euclidean_position_update_fn(logdensity_fn: Callable):
         step_size: float,
         coef: float,
         auxiliary_info=None,
+        bounds = None, 
+        boundary_conditions = None,
     ):
         del auxiliary_info
         new_position = jax.tree_util.tree_map(
@@ -192,8 +198,24 @@ def euclidean_position_update_fn(logdensity_fn: Callable):
             position,
             kinetic_grad,
         )
+        lower_bounds, upper_bounds = bounds.T
+        q = new_position
+        over_upper  = q > upper_bounds
+        under_lower = q < lower_bounds
+        
+        reflect_factor = jnp.where(over_upper | under_lower, -1.0, 1.0)
+
+        # p = jnp.where(boundary_conditions == 0, p*reflect_factor, p)
+        q  = jnp.where(boundary_conditions == 0, jnp.where(q < lower_bounds, 2*lower_bounds-q, q), jnp.where(q < lower_bounds, q -lower_bounds + upper_bounds, q))
+
+        # # whether to apply reflective or circular boundary condition, position upper bound case
+        q = jnp.where(boundary_conditions == 0, jnp.where(q > upper_bounds, 2*upper_bounds-q, q) ,  jnp.where(q > upper_bounds, q-upper_bounds+lower_bounds, q))
+
+        new_position = q
+
+
         logdensity, logdensity_grad = logdensity_and_grad_fn(new_position)
-        return new_position, logdensity, logdensity_grad, None
+        return new_position, logdensity, logdensity_grad, None, reflect_factor
 
     return update
 
@@ -263,6 +285,7 @@ def generate_euclidean_integrator(coefficients):
         return one_step
 
     return euclidean_integrator
+
 
 
 """
